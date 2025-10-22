@@ -1,0 +1,9 @@
+{
+  "starting_directory": "/home/rmleonard",
+  "extension_list": [".txt", ".pdf", ".doc", ".docx", ".jpg", ".png", ".mp4", ".mp3"],
+  "use_extension_list": false,
+  "exclude_hidden_files": true,
+  "human_readable_sizes": true,
+  "log_level": "INFO",
+  "log_file": "dfa.log"
+}

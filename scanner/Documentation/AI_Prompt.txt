@@ -1,0 +1,9 @@
+I want to create a disk-folder-file analyzer. to start with, it needs to be text based, CLI run, written in Python3. Input from the CLI will provide the starting directory.
+
+From this point, it will scan the directory and all sub-directories, it needs to find all visible files, create a sum total size of each of these file types, and keep track of the largest and smallest file (and its location).
+
+once these statistics are generated, it needs to print a tabulated list, with headers, of file type or extension, sum total of all files of that type or extensions, then the largest file (and its size), then the smallest file (and its size).
+
+Keep notes as to what is working and what isn't working, likewise save and bookmark as needed so that we can make changes if and when needed. All input should be sanitized, the application should have logging enabled, and a configuration file should be used to hold a value for "starting directory", a comma separated list of file extensions, a boolean for "Use extension List" (initial value false). Ask questions if the instructions seem vague or need clarification.
+
+...
