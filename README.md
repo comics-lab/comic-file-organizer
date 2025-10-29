@@ -2,6 +2,12 @@
 
 Scan/rename/import: convert CBR→CBZ, rename per Mylar rules, move to filestore, update Mylar3.
 
+## Documentation
+
+- Central docs index: `../docs/DOCUMENTATION_INDEX.md`
+- Conversation snapshot (docs): `../docs/conversations/comic-file-organizer.md`
+- Canonical conversation transcript: `CONVERSATION.md`
+
 ## Quickstart
 ```bash
 python3 -m venv .venv
