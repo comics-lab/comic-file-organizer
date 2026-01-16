@@ -1,5 +1,13 @@
 # comic-file-organizer
 
+## Truth Files
+
+- `COMPREHENSION.md`
+- `DECISIONS.md`
+- `ROADMAP.md`
+- `GLOSSARY.md`
+
+
 ## Agent and Logs
 
 - Agent profile: `AGENTS.md`
