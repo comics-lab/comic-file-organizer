@@ -13,7 +13,7 @@ import json
 import logging
 from pathlib import Path
 from dataclasses import dataclass, field
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Tuple
 
 
 logger = logging.getLogger(__name__)
@@ -31,6 +31,8 @@ class SeriesInfo:
     comicid: Optional[int] = None
     status: Optional[str] = None  # "Continuing" or "Ended"
     publication_run: Optional[str] = None
+    file_type_counts: Dict[str, int] = field(default_factory=dict)  # e.g., {'CBR': 14, 'CBZ': 122}
+    file_type_sizes: Dict[str, int] = field(default_factory=dict)  # e.g., {'CBR': 262144000, 'CBZ': 3006477107}
     
     @property
     def missing_issues(self) -> int:
@@ -53,6 +55,11 @@ class SeriesInfo:
     def is_followed_only(self) -> bool:
         """Check if series is followed but has no issues"""
         return self.issues_owned == 0
+    
+    @property
+    def total_size_bytes(self) -> int:
+        """Total size of all comic files in bytes"""
+        return sum(self.file_type_sizes.values())
 
 
 @dataclass
@@ -203,8 +210,9 @@ class Mylar3Scanner:
             logger.error(f"Error parsing series.json in {series_path}: {e}")
             return None
         
-        # Count comic files
-        issues_owned = self._count_comic_files(series_path)
+        # Count comic files and collect file type information
+        file_counts, file_sizes = self._analyze_comic_files(series_path)
+        issues_owned = sum(file_counts.values())
         
         return SeriesInfo(
             publisher=publisher_name,
@@ -215,12 +223,22 @@ class Mylar3Scanner:
             issues_owned=issues_owned,
             comicid=comicid,
             status=status,
-            publication_run=publication_run
+            publication_run=publication_run,
+            file_type_counts=file_counts,
+            file_type_sizes=file_sizes
         )
     
-    def _count_comic_files(self, series_path: str) -> int:
-        """Count CBR/CBZ files in series directory"""
-        count = 0
+    def _analyze_comic_files(self, series_path: str) -> Tuple[Dict[str, int], Dict[str, int]]:
+        """
+        Analyze comic files in series directory, returning counts and sizes by file type.
+        
+        Returns:
+            Tuple of (file_type_counts, file_type_sizes) dictionaries
+            e.g., ({'CBR': 14, 'CBZ': 122}, {'CBR': 262144000, 'CBZ': 3006477107})
+        """
+        file_counts: Dict[str, int] = {}
+        file_sizes: Dict[str, int] = {}
+        
         try:
             for entry in os.listdir(series_path):
                 # Skip metadata files
@@ -231,13 +249,23 @@ class Mylar3Scanner:
                 file_path = os.path.join(series_path, entry)
                 if os.path.isfile(file_path):
                     _, ext = os.path.splitext(entry)
+                    ext_upper = ext.upper()
                     if ext.lower() in self.COMIC_EXTENSIONS:
-                        count += 1
-                        
+                        # Get file size
+                        try:
+                            size = os.path.getsize(file_path)
+                            # Track by uppercase extension (CBR, CBZ, etc.)
+                            file_counts[ext_upper] = file_counts.get(ext_upper, 0) + 1
+                            file_sizes[ext_upper] = file_sizes.get(ext_upper, 0) + size
+                        except OSError as e:
+                            logger.warning(f"Could not get size for {file_path}: {e}")
+                            # Still count the file even if we can't get size
+                            file_counts[ext_upper] = file_counts.get(ext_upper, 0) + 1
+                            
         except Exception as e:
-            logger.error(f"Error counting files in {series_path}: {e}")
+            logger.error(f"Error analyzing files in {series_path}: {e}")
         
-        return count
+        return file_counts, file_sizes
 
 
 if __name__ == "__main__":

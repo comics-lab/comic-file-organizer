@@ -8,13 +8,15 @@ import sys
 import argparse
 import logging
 from pathlib import Path
+from typing import Dict
+from collections import defaultdict
 try:
     from comic_file_organizer.mylar3_config import load_config
-    from comic_file_organizer.mylar3_scanner import Mylar3Scanner
+    from comic_file_organizer.mylar3_scanner import Mylar3Scanner, SeriesInfo
     from comic_file_organizer.mylar3_stats import calculate_statistics
 except ModuleNotFoundError:
     from mylar3_config import load_config
-    from mylar3_scanner import Mylar3Scanner
+    from mylar3_scanner import Mylar3Scanner, SeriesInfo
     from mylar3_stats import calculate_statistics
 
 
@@ -26,6 +28,151 @@ def format_table_row(columns, widths):
 def format_separator(widths):
     """Create a separator line for table"""
     return "-+-".join("-" * width for width in widths)
+
+
+def format_size(size_bytes: int) -> str:
+    """
+    Format file size in bytes to human-readable format (B, KB, MB, GB).
+    
+    Args:
+        size_bytes: Size in bytes
+        
+    Returns:
+        Formatted string like "250MB" or "2.8GB"
+    """
+    if size_bytes == 0:
+        return "0B"
+    
+    for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
+        if size_bytes < 1024.0:
+            if unit == 'B':
+                return f"{int(size_bytes)}{unit}"
+            else:
+                return f"{size_bytes:.1f}{unit}".rstrip('0').rstrip('.')
+        size_bytes /= 1024.0
+    
+    return f"{size_bytes:.1f}PB"
+
+
+def print_publisher_detail_report(scan_results, publisher_name: str):
+    """
+    Print detailed report for a specific publisher showing file types and sizes per series.
+    
+    Format matches the example:
+    Publisher    | Series | types | Sizes
+    --------------------------------------------------
+    Marvel        | 4          
+      Spider-man  | CBR |   14 | 250MB |  TTL
+                          | CBZ |  122| 2.8GB    | 3.1GB
+    """
+    # Find publisher (case-insensitive)
+    publisher_lower = publisher_name.lower()
+    matching_publisher = None
+    for pub in scan_results.publishers:
+        if pub.lower() == publisher_lower:
+            matching_publisher = pub
+            break
+    
+    if not matching_publisher:
+        print(f"Error: Publisher '{publisher_name}' not found in collection.")
+        print(f"Available publishers: {', '.join(sorted(scan_results.publishers))}")
+        return
+    
+    # Get all series for this publisher
+    publisher_series = [s for s in scan_results.series if s.publisher.lower() == publisher_lower]
+    publisher_series.sort(key=lambda s: s.series_name.lower())
+    
+    if not publisher_series:
+        print(f"No series found for publisher '{matching_publisher}'")
+        return
+    
+    # Calculate totals
+    total_series = len(publisher_series)
+    total_by_type: Dict[str, int] = defaultdict(int)  # Count by type
+    total_size_by_type: Dict[str, int] = defaultdict(int)  # Size by type
+    
+    for series in publisher_series:
+        for file_type, count in series.file_type_counts.items():
+            total_by_type[file_type] += count
+        for file_type, size in series.file_type_sizes.items():
+            total_size_by_type[file_type] += size
+    
+    # Print header
+    print("=" * 70)
+    print(f"PUBLISHER DETAIL REPORT: {matching_publisher}")
+    print("=" * 70)
+    print()
+    
+    # Print publisher summary line (matches example style)
+    print(f"{'Publisher':<20} | {'Series':>5}")
+    print("-" * 70)
+    print(f"{matching_publisher:<20} | {total_series:>5}")
+    print()
+    
+    # Print each series with file type breakdown
+    for series in publisher_series:
+        # Series name line
+        series_display = series.series_name
+        if series.year:
+            series_display += f" ({series.year})"
+        
+        # Get all file types for this series, sorted
+        file_types = sorted(set(series.file_type_counts.keys()) | set(series.file_type_sizes.keys()))
+        
+        if not file_types:
+            print(f"  {series_display}")
+            print("    (no comic files)")
+            print()
+            continue
+        
+        # Print series name
+        print(f"  {series_display}")
+        
+        # Print file type rows (indented, matching example style)
+        for file_type in file_types:
+            count = series.file_type_counts.get(file_type, 0)
+            size_bytes = series.file_type_sizes.get(file_type, 0)
+            size_str = format_size(size_bytes)
+            print(f"    {'':>20} | {file_type:>3} | {count:>5} | {size_str:>10}")
+        
+        # Print series total (TTL)
+        series_total = series.total_size_bytes
+        series_total_str = format_size(series_total)
+        print(f"    {'':>20} {'TTL':>3} {'':>5} {series_total_str:>10}")
+        print()
+    
+    # Print publisher totals
+    print("-" * 70)
+    all_types = sorted(set(total_by_type.keys()) | set(total_size_by_type.keys()))
+    
+    if all_types:
+        # Print header for totals
+        print(f"{'Publisher Totals':>20} |", end="")
+        for file_type in all_types:
+            print(f" {file_type:>3} |", end="")
+        print(f" {'Total':>10}")
+        
+        # Print counts
+        print(f"{'':>20} |", end="")
+        for file_type in all_types:
+            count = total_by_type.get(file_type, 0)
+            print(f" {count:>5} |", end="")
+        print()
+        
+        # Print sizes
+        print(f"{'':>20} |", end="")
+        for file_type in all_types:
+            size_bytes = total_size_by_type.get(file_type, 0)
+            size_str = format_size(size_bytes)
+            print(f" {size_str:>10} |", end="")
+        
+        # Grand total
+        grand_total = sum(total_size_by_type.values())
+        grand_total_str = format_size(grand_total)
+        print(f" {grand_total_str:>10}")
+    
+    print("=" * 70)
+    print()
 
 
 def print_summary(stats):
@@ -169,6 +316,7 @@ Examples:
   %(prog)s /path/to/mylar3/config.ini
   %(prog)s /path/to/mylar3/config.ini --verbose
   %(prog)s /path/to/mylar3/config.ini --series-limit 50
+  %(prog)s /path/to/mylar3/config.ini --publisher Marvel
         """
     )
     
@@ -202,6 +350,12 @@ Examples:
         help='Skip top incomplete/complete lists'
     )
     
+    parser.add_argument(
+        '--publisher',
+        type=str,
+        help='Generate detailed report for a specific publisher (case-insensitive)'
+    )
+    
     args = parser.parse_args()
     
     # Setup logging
@@ -219,18 +373,22 @@ Examples:
         scanner = Mylar3Scanner(config.destination_dir)
         scan_results = scanner.scan()
         
-        # Calculate statistics
-        stats = calculate_statistics(scan_results)
-        
-        # Display results
-        print_summary(stats)
-        print_publisher_breakdown(stats)
-        
-        if not args.no_details:
-            print_series_details(stats, limit=args.series_limit)
-        
-        if not args.no_top_lists:
-            print_top_lists(stats)
+        # Check if detailed publisher report requested
+        if args.publisher:
+            print_publisher_detail_report(scan_results, args.publisher)
+        else:
+            # Calculate statistics
+            stats = calculate_statistics(scan_results)
+            
+            # Display results
+            print_summary(stats)
+            print_publisher_breakdown(stats)
+            
+            if not args.no_details:
+                print_series_details(stats, limit=args.series_limit)
+            
+            if not args.no_top_lists:
+                print_top_lists(stats)
         
         # Report errors if any
         if scan_results.errors:
