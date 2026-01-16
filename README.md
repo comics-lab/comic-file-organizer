@@ -1,5 +1,11 @@
 # comic-file-organizer
 
+## Agent and Logs
+
+- Agent profile: `AGENTS.md`
+- Logs (local-only): `CONVERSATION.md`, `BOOKMARKS.md`, `Action-Log.md` (when present)
+
+
 Scan/rename/import: convert CBR→CBZ, rename per Mylar rules, move to filestore, update Mylar3.
 
 ## Documentation
